@@ -18,11 +18,11 @@ pub fn App(cx: Scope) -> impl IntoView {
         <Stylesheet id="leptos" href="/style.css"/>
 
         // sets the document title
-        <Title text="Welcome to Leptos"/>
+        <Title text="Welcome to Hoops"/>
 
         // content for this welcome page
         <main>
-            <h1>"Welcome to Leptos!"</h1>
+            <h1>"Welcome to Hoops!"</h1>
             <button on:click=on_click>"Click Me: " {count}</button>
         </main>
     }
