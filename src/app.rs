@@ -14,14 +14,14 @@ pub fn App(cx: Scope) -> impl IntoView {
         cx,
 
         // injects a stylesheet into the document <head>
-        // id=leptos means cargo-leptos will hot-reload this stylesheet 
+        // id=leptos means cargo-leptos will hot-reload this stylesheet
         <Stylesheet id="leptos" href="/style.css"/>
 
         // sets the document title
         <Title text="Welcome to Leptos"/>
 
         // content for this welcome page
-        <main>            
+        <main>
             <h1>"Welcome to Leptos!"</h1>
             <button on:click=on_click>"Click Me: " {count}</button>
         </main>
