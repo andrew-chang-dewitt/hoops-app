@@ -5,7 +5,7 @@ cfg_if! {
         use leptos::*;
         use actix_files::{Files, NamedFile};
         use actix_web::{HttpServer, middleware::Compress, web};
-        use leptos_start::app::*;
+        use hoops_app::app::*;
 
         #[actix_web::main]
         async fn main() -> std::io::Result<()> {
