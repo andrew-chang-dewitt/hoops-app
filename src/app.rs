@@ -13,7 +13,7 @@ use leptos_router::{
     RoutesProps,
 };
 
-use crate::components::form::*;
+use crate::components::{form::*, input::*};
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
@@ -69,7 +69,16 @@ fn Test(cx: Scope) -> impl IntoView {
 
     view! {
         cx,
-        <Form></Form>
+        <Form action="/">
+            <Input name="username".to_string() label="Username".to_string() />
+            <Input
+                name="password".to_string()
+                label="Password".to_string()
+                input_type=InputType::Password
+            />
+            <button type="submit">"Login"</button>
+        </Form>
+        // {error_alert}
         // <Form action="/api/token" method="POST" on_response=handle_login error=error_signal>
         //     <Input name="username".to_string() label="Username".to_string() />
         //     <Input
