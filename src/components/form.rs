@@ -1,17 +1,21 @@
-use leptos::{component, view, Fragment, IntoView, Scope};
-use leptos_router::use_resolved_path;
+use std::fmt::Display;
+
+use leptos::{typed_builder::TypedBuilder, view, Children, IntoAttribute, IntoView, Scope};
+use leptos_router::{use_resolved_path, ToHref};
 
 pub enum HttpMethod {
     Get,
     Post,
 }
 
-impl HttpMethod {
-    pub fn to_string(&self) -> String {
-        match self {
-            Get => String::from("GET"),
-            Post => String::from("POST"),
-        }
+impl Display for HttpMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let string = match self {
+            Self::Get => String::from("GET"),
+            Self::Post => String::from("POST"),
+        };
+
+        write!(f, "{string}")
     }
 }
 
@@ -20,30 +24,44 @@ pub enum FormEnctype {
     Json,
 }
 
-#[component]
-pub fn Form<Action>(
-    cx: Scope,
+#[derive(TypedBuilder)]
+pub struct FormProps<Action> {
     /// The url to submit the form to
     action: Action,
     /// The submission method to use, defaults to GET
-    method: Option<HttpMethod>,
+    #[builder(default = HttpMethod::Get)]
+    method: HttpMethod,
     /// The submission encoding type to use, defaults to application/x-www-form-urlencoded
-    enctype: Option<FormEnctype>,
+    // #[builder(default, setter(strip_option))]
+    // enctype: Option<FormEnctype>,
     /// Enable or disable autocomplete, defaults to enabled
-    autocomplete: Option<bool>,
+    // #[builder(default, setter(strip_option))]
+    // autocomplete: Option<bool>,
     /// Component children
-    children: Box<dyn FnOnce(Scope) -> Fragment>,
-) -> impl IntoView {
-    let used_method = if let Some(m) = method {
-        m.to_string()
-    } else {
-        HttpMethod::Get.to_string()
-    };
-    let used_action = use_resolved_path(cx, move || action);
+    children: Children,
+}
+
+#[allow(non_snake_case)]
+pub fn Form<Action>(cx: Scope, props: FormProps<Action>) -> impl IntoView
+where
+    Action: ToHref + 'static,
+{
+    let FormProps {
+        action,
+        method,
+        children,
+    } = props;
+
+    // use leptos router's method to ensure given action is valid & store it as a Signal
+    let resolved_action = use_resolved_path(cx, move || action.to_href()());
 
     view! {
         cx,
-        <form action=used_action method=used_method>
+        <form
+            // get the action from the resolved Signal as a String
+            action=move || resolved_action.get()
+            method=method.to_string()
+        >
             {children(cx)}
         </form>
     }
@@ -65,7 +83,10 @@ mod tests {
 
         use super::*;
 
-        fn setup<Action: 'static>(action: Action) -> Option<Element> {
+        fn setup<Action>(action: Action) -> Option<Element>
+        where
+            Action: ToHref + 'static,
+        {
             mount_to_body(move |cx| {
                 view! {
                     cx,

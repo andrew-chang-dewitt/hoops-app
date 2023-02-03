@@ -35,8 +35,8 @@ pub fn Input(cx: Scope, props: InputProps) -> impl IntoView {
 
     view! {
         cx,
-        <label for={&name}>{&label}":"</label>
-        <input id={&name} name={&name} type=input_type_str />
+        <label for=&name>{&label}":"</label>
+        <input id=&name name=&name type=input_type_str />
     }
 }
 
