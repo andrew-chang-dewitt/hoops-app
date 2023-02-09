@@ -6,6 +6,8 @@ use leptos_router::{
 };
 use leptos_server::create_server_action;
 
+use crate::components::input::{Input, InputProps, InputType};
+
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
@@ -39,8 +41,8 @@ pub fn register_server_functions() {
 }
 
 #[server(Login, "/api")]
-async fn login(test: String) -> Result<String, ServerFnError> {
-    let result = format!("From input: {test}");
+async fn login(username: String, password: String) -> Result<String, ServerFnError> {
+    let result = format!("Got username: {username} & password: {password}");
     println!("{result}");
 
     Ok(result)
@@ -64,8 +66,8 @@ fn Login(cx: Scope) -> impl IntoView {
     view! {
         cx,
         <ActionForm action=login>
-            <label for="test">"Test:"</label>
-            <input id="test" name="test" type="text" />
+            <Input name={ String::from( "username" ) } label={ String::from( "Username:" ) }/>
+            <Input name={ String::from( "password" ) } label={ String::from( "Password:" ) } input_type=InputType::Password />
             <button type="submit">"Login"</button>
         </ActionForm>
 
