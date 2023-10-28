@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+#
+# when using chromedriver on windows make sure to disable gpu on windows, otherwise chrome
+# takes forever to start see more here:
+# https://developer.chrome.com/blog/headless-chrome/#starting-headless-cli
+# set the --disable-gpu flag for headless chrome using the webdriver.json config, like this:
+#
+# ```PROJECT_ROOT/webdriver.json
+# {
+#   "goog:chromeOptions": {
+#     "args": [
+#       "--disable-gpu"
+#     ]
+#   }
+# }
+# ```
+#
+# run the non wasm tests with cargo-leptos and the rest with a manually specified wasm target
+cargo watch -x "leptos test" -x "test --target=wasm32-unknown-unknown --features=hydrate"
