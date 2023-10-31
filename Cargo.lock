@@ -1073,10 +1073,12 @@ dependencies = [
 name = "hoops-app"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum",
  "cfg-if",
  "console_error_panic_hook",
  "console_log",
+ "futures",
  "http",
  "leptos",
  "leptos_axum",

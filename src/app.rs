@@ -4,6 +4,7 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 use rust_decimal::prelude::*;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[component]
@@ -44,11 +45,14 @@ pub fn App() -> impl IntoView {
 fn HomePage() -> impl IntoView {
     view! {
         <TransactionNew />
+        <TransactionsAll />
     }
 }
 
 /// Data type for modeling a transaction's information
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Transaction {
+    // FIXME: How to enable Deserialize & Serialize for Uuid?
     pub id: Uuid,
     pub payee: String,
     pub description: Option<String>,
@@ -68,6 +72,7 @@ impl Transaction {
 
 cfg_if! {
     if #[cfg(feature ="ssr")] {
+        use std::convert::TryInto;
         use sqlx::{ FromRow, SqlitePool };
 
         pub fn pool() -> Result<SqlitePool, ServerFnError> {
@@ -84,14 +89,18 @@ cfg_if! {
             amount: String,
         }
 
-        impl Into<Transaction> for TransactionSql {
-            fn into(self) -> Transaction {
+        impl TryInto<Transaction> for TransactionSql {
+            type Error = anyhow::Error;
+
+            fn try_into(self) -> Result<Transaction, Self::Error> {
                 let TransactionSql { id, amount, description, payee } = self;
 
-                Transaction {
+                let tran = Transaction {
                     id, payee, description,
-                    amount: Decimal::from_str_exact(&amount).unwrap(),
-                }
+                    amount: Decimal::from_str_exact(&amount)?,
+                };
+
+                Ok(tran)
             }
         }
 
@@ -106,24 +115,41 @@ cfg_if! {
             }
         }
 
-        impl Transaction {
-            pub async fn db_insert(self, pool: &SqlitePool) -> Result<(), sqlx::Error> {
-                let TransactionSql {id, payee, description, amount} = self.into();
+        pub async fn db_insert_new(transaction: Transaction, pool: &SqlitePool) -> Result<(), sqlx::Error> {
+            let TransactionSql {id, payee, description, amount} = transaction.into();
 
-                sqlx::query!(
-                    r#"
-                    INSERT INTO transactions (id, amount, description, payee)
-                    VALUES (?, ?, ?, ?);
-                    "#,
-                    id,
-                    amount,
-                    description,
-                    payee,
-                )
-                    .execute(pool)
-                    .await
-                    .map(|_| ())
+            sqlx::query!(
+                r#"
+                INSERT INTO transactions (id, amount, description, payee)
+                VALUES (?, ?, ?, ?);
+                "#,
+                id,
+                amount,
+                description,
+                payee,
+            )
+                .execute(pool)
+                .await
+                .map(|_| ())
+        }
+
+        pub async fn db_read_many(pool: &SqlitePool) -> Result<Vec<Transaction>, anyhow::Error> {
+            let mut transactions: Vec<Transaction> = Vec::new();
+            let rows = sqlx::query_as::<_, TransactionSql>(
+                r#"
+                SELECT * FROM transactions;
+                "#
+            ).fetch(pool);
+
+            // needed to enable try_next on returned rows stream
+            use futures::TryStreamExt;
+
+            while let Some(row) = rows.try_next().await? {
+                let tran: Transaction = row.try_into()?;
+                transactions.push(tran);
             }
+
+            Ok(transactions)
         }
     }
 }
@@ -141,18 +167,13 @@ pub async fn transaction_new(
         _ => Some(description),
     };
     // if getting a pool fails, immediately return the error instead of proceeding
-    let pool = &pool().map_err(|err| {
-        logging::log!("There was an error getting a sqlite pool: {}", err);
-        err
-    })?;
+    let pool = &pool()?;
 
-    Transaction::new(amount, payee, desc_option)
-        .db_insert(pool)
-        .await
-        .map_err(|err| {
-            logging::log!("There was an error saving the transaction: {}", err);
-            ServerFnError::ServerError(err.to_string())
-        })
+    let transaction = Transaction::new(amount, payee, desc_option);
+    db_insert_new(transaction, pool).await.map_err(|err| {
+        logging::log!("There was an error saving the transaction: {}", err);
+        ServerFnError::ServerError(err.to_string())
+    })
 }
 
 /// UI for adding a transaction to the record
@@ -167,6 +188,81 @@ fn TransactionNew() -> impl IntoView {
             <InputAmount name="amount".to_string() label="Amount:".to_string() attr:required=true />
             <button type="submit">Create</button>
         </ActionForm>
+    }
+}
+
+/// Server endpoint for reading all transaction
+#[server(prefix = "/api", endpoint = "transactions/read/all")]
+pub async fn transactions_read_many() -> Result<Vec<Transaction>, ServerFnError> {
+    let pool = &pool()?;
+
+    db_read_many(pool)
+        .await
+        .map_err(|e| ServerFnError::ServerError(e.to_string()))
+}
+
+/// UI for displaying a list of transactions
+///
+/// Currently just displays all transactions in the database. Needs the following features
+/// implemented later:
+///
+/// TODO:
+///
+/// 1. paginate or infinite scroll
+/// 2. auto-update if new transactions are added in the currently visible range of transactions
+/// 3. auto-update a transaction's displayed info if it is updated in the db & it is currently
+///    visible
+#[component]
+fn TransactionsAll() -> impl IntoView {
+    let transactions = create_resource(
+        // FIXME: for now, this just reads once, later, hook it up to a server action's
+        // `version.get()` Signal to fetch updates any time there's changes
+        || {},
+        move |_| transactions_read_many(),
+    );
+
+    view! {
+        <Suspense fallback=move || view! {<p>Loading...</p>}>
+            {move || {
+                let existing_transactions = {
+                    move || {
+                        transactions.get().map(move |t| match t {
+                            Err(err) => {
+                                view! { <pre></pre>}
+                            },
+                            Ok(trans) => {
+                                if trans.is_empty() {
+                                    view! {<p>No transactions yet...</p>}
+                                } else {
+                                    trans.into_iter().map(move |tran| {
+                                        view! {
+                                            <li>
+                                                <ul>
+                                                    <li>{tran.payee}</li>
+                                                    <li>{tran.amount}</li>
+                                                    <li>{tran.description}</li>
+                                                </ul>
+                                            </li>
+                                        }
+                                    }).collect_view()
+                                }
+                            }
+                        }).unwrap_or_default()
+                    }
+                };
+
+                // FIXME: when the resource relies on watching a server action for adding new
+                // transaction, get pending submissions for the action from `action.submissions()`
+                // like in https://github.com/leptos-rs/leptos/blob/5f53a1459ebc8ac1912df99ce24153c675a198ed/examples/todo_app_sqlite_axum/src/todo.rs#L172
+                // let pending_transactions = {...}
+
+                view! {
+                    <ul>
+                        {existing_transactions}
+                    </ul>
+                }
+            }}
+        </Suspense>
     }
 }
 
