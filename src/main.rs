@@ -1,7 +1,15 @@
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
-    use axum::{routing::post, Router};
+    use axum::response::IntoResponse;
+    use axum::{
+        body::Body as AxumBody,
+        extract::State,
+        http::Request,
+        response::Response,
+        routing::{get, post},
+        Router,
+    };
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
@@ -38,10 +46,32 @@ async fn main() {
         routes: routes.clone(),
     };
 
+    // provide db pool as global context via route handler
+    async fn routes_handler(State(app_state): State<AppState>, req: Request<AxumBody>) -> Response {
+        let AppState {
+            leptos_options,
+            pool,
+            routes,
+        } = app_state;
+        // FIXME: this debug statement show's there's a pool here
+        dbg!(&pool);
+        let handler = leptos_axum::render_route_with_context(
+            leptos_options.clone(),
+            routes.clone(),
+            move || {
+                // FIXME: which means there should be one getting provided as context here
+                provide_context(pool.clone());
+            },
+            App,
+        );
+
+        handler(req).await.into_response()
+    }
+
     // build our application with a route
     let app = Router::new()
         .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
-        .leptos_routes(&app_state, routes, App)
+        .leptos_routes_with_handler(routes, get(routes_handler))
         .fallback(file_and_error_handler)
         .with_state(app_state);
 

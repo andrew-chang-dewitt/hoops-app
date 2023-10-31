@@ -1,7 +1,10 @@
 use crate::error_template::{AppError, ErrorTemplate};
+use cfg_if::cfg_if;
 use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
+use rust_decimal::prelude::*;
+use uuid::Uuid;
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -40,31 +43,128 @@ pub fn App() -> impl IntoView {
 #[component]
 fn HomePage() -> impl IntoView {
     view! {
-        <TransactionCreate />
+        <TransactionNew />
+    }
+}
+
+/// Data type for modeling a transaction's information
+pub struct Transaction {
+    pub id: Uuid,
+    pub payee: String,
+    pub description: Option<String>,
+    pub amount: Decimal,
+}
+
+impl Transaction {
+    pub fn new(amount: Decimal, payee: String, description: Option<String>) -> Self {
+        Transaction {
+            id: Uuid::new_v4(),
+            amount,
+            description,
+            payee,
+        }
+    }
+}
+
+cfg_if! {
+    if #[cfg(feature ="ssr")] {
+        use sqlx::{ FromRow, SqlitePool };
+
+        pub fn pool() -> Result<SqlitePool, ServerFnError> {
+            // FIXME: so why isn't it showing up in context here?
+            use_context::<SqlitePool>()
+                .ok_or_else(|| ServerFnError::ServerError("Pool missing".into()))
+        }
+
+        #[derive(FromRow, Clone)]
+        pub struct TransactionSql {
+            id: Uuid,
+            payee: String,
+            description: Option<String>,
+            amount: String,
+        }
+
+        impl Into<Transaction> for TransactionSql {
+            fn into(self) -> Transaction {
+                let TransactionSql { id, amount, description, payee } = self;
+
+                Transaction {
+                    id, payee, description,
+                    amount: Decimal::from_str_exact(&amount).unwrap(),
+                }
+            }
+        }
+
+        impl Into<TransactionSql> for Transaction {
+            fn into(self) -> TransactionSql {
+                let Transaction { id, amount, description, payee } = self;
+
+                TransactionSql {
+                    id, description, payee,
+                    amount: amount.to_string(),
+                }
+            }
+        }
+
+        impl Transaction {
+            pub async fn db_insert(self, pool: &SqlitePool) -> Result<(), sqlx::Error> {
+                let TransactionSql {id, payee, description, amount} = self.into();
+
+                sqlx::query!(
+                    r#"
+                    INSERT INTO transactions (id, amount, description, payee)
+                    VALUES (?, ?, ?, ?);
+                    "#,
+                    id,
+                    amount,
+                    description,
+                    payee,
+                )
+                    .execute(pool)
+                    .await
+                    .map(|_| ())
+            }
+        }
     }
 }
 
 /// add Transaction server endpoint
-#[server(prefix = "/api", endpoint = "transaction/create")]
-pub async fn transaction_create(
-    desc: String,
+#[server(prefix = "/api", endpoint = "transaction/new")]
+pub async fn transaction_new(
+    description: String,
     payee: String,
-    amount: f32,
+    amount: Decimal,
 ) -> Result<(), ServerFnError> {
-    println!("{}, {}, {}", desc, payee, amount);
-    Ok(())
+    // convert empty strings to None, otherwise pass as Some(..)
+    let desc_option = match description.as_str() {
+        "" => None,
+        _ => Some(description),
+    };
+    // if getting a pool fails, immediately return the error instead of proceeding
+    let pool = &pool().map_err(|err| {
+        logging::log!("There was an error getting a sqlite pool: {}", err);
+        err
+    })?;
+
+    Transaction::new(amount, payee, desc_option)
+        .db_insert(pool)
+        .await
+        .map_err(|err| {
+            logging::log!("There was an error saving the transaction: {}", err);
+            ServerFnError::ServerError(err.to_string())
+        })
 }
 
 /// UI for adding a transaction to the record
 #[component]
-fn TransactionCreate() -> impl IntoView {
-    let transaction_create = create_server_action::<TransactionCreate>();
+fn TransactionNew() -> impl IntoView {
+    let transaction_new = create_server_action::<TransactionNew>();
 
     view! {
-        <ActionForm action=transaction_create>
-            <Input name="payee".to_string() label="Payee:".to_string() />
-            <Input name="desc".to_string() label="Description:".to_string() />
-            <InputAmount name="amount".to_string() label="Amount:".to_string() />
+        <ActionForm action=transaction_new>
+            <Input name="payee".to_string() label="Payee:".to_string() attr:required=true />
+            <Input name="description".to_string() label="Description:".to_string() />
+            <InputAmount name="amount".to_string() label="Amount:".to_string() attr:required=true />
             <button type="submit">Create</button>
         </ActionForm>
     }
