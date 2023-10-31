@@ -1,12 +1,11 @@
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
-    use axum::response::IntoResponse;
     use axum::{
         body::Body as AxumBody,
-        extract::State,
+        extract::{Path, State},
         http::Request,
-        response::Response,
+        response::{IntoResponse, Response},
         routing::{get, post},
         Router,
     };
@@ -46,20 +45,39 @@ async fn main() {
         routes: routes.clone(),
     };
 
-    // provide db pool as global context via route handler
+    /// Provide db pool to server functions as global context
+    async fn server_fn_handler(
+        State(app_state): State<AppState>,
+        path: Path<String>,
+        headers: http::HeaderMap,
+        raw_query: axum::extract::RawQuery,
+        request: Request<AxumBody>,
+    ) -> impl IntoResponse {
+        log::debug!("{:?}", path);
+
+        leptos_axum::handle_server_fns_with_context(
+            path,
+            headers,
+            raw_query,
+            move || {
+                provide_context(app_state.pool.clone());
+            },
+            request,
+        )
+        .await
+    }
+
+    /// Provide db pool to routes as global context
     async fn routes_handler(State(app_state): State<AppState>, req: Request<AxumBody>) -> Response {
         let AppState {
             leptos_options,
             pool,
             routes,
         } = app_state;
-        // FIXME: this debug statement show's there's a pool here
-        dbg!(&pool);
         let handler = leptos_axum::render_route_with_context(
             leptos_options.clone(),
             routes.clone(),
             move || {
-                // FIXME: which means there should be one getting provided as context here
                 provide_context(pool.clone());
             },
             App,
@@ -70,7 +88,10 @@ async fn main() {
 
     // build our application with a route
     let app = Router::new()
-        .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
+        .route(
+            "/api/*fn_name",
+            get(server_fn_handler).post(server_fn_handler),
+        )
         .leptos_routes_with_handler(routes, get(routes_handler))
         .fallback(file_and_error_handler)
         .with_state(app_state);
