@@ -8,6 +8,70 @@ use crate::transactions::model::Transaction;
 #[cfg(feature = "ssr")]
 use crate::transactions::model::{db_insert_new, db_read_many, pool};
 
+/// UI for adding a transaction to the record
+/// Currently just submits the form w/out any error handling or optimistic updating of the list
+///
+/// TODO:
+///
+/// 1. error handling
+/// 2. optimistic updates to a co-located list
+/// 3. add date/time picker for timestamp field
+/// 4. build account feature & add account_id as foreign key
+/// 5. build envelope feature & add spent_from as nullable foreign key
+#[component]
+pub fn New(action: MultiAction<TransactionNew, Result<(), ServerFnError>>) -> impl IntoView {
+    view! {
+        <MultiActionForm action>
+            <Input name="payee".to_string() label="Payee:".to_string() attr:required=true />
+            <Input name="description".to_string() label="Description:".to_string() />
+            <InputAmount name="amount".to_string() label="Amount:".to_string() attr:required=true />
+            <button type="submit">Create</button>
+        </MultiActionForm>
+    }
+}
+
+/// UI for displaying the `<li>` memebers of a list of transactions
+///
+/// Intended to be used to inside a `<ul>`, like so:
+///
+/// ```
+/// <ul>
+///     <ListItems transactions={...}>
+/// </ul>
+/// ```
+///
+/// Currently just displays all transactions in the database. Needs the following features
+/// implemented later:
+#[component]
+fn ListItems(transactions: Vec<Transaction>) -> impl IntoView {
+    transactions
+        .into_iter()
+        .map(move |transaction| {
+            let Transaction {
+                payee,
+                amount,
+                description,
+                ..
+            } = transaction;
+            view! { <Item payee amount description /> }
+        })
+        .collect_view()
+}
+
+/// Component for rendering a single item in a transaction list
+#[component]
+fn Item(payee: String, amount: Decimal, description: Option<String>) -> impl IntoView {
+    view! {
+        <li>
+            <ul>
+                <li>{payee}</li>
+                <li>{amount.to_string()}</li>
+                <li>{description}</li>
+            </ul>
+        </li>
+    }
+}
+
 /// add Transaction server endpoint
 #[server(prefix = "/api", endpoint = "transaction/new")]
 pub async fn transaction_new(
@@ -30,30 +94,6 @@ pub async fn transaction_new(
     })
 }
 
-/// UI for adding a transaction to the record
-/// Currently just submits the form w/out any error handling or optimistic updating of the list
-///
-/// TODO:
-///
-/// 1. error handling
-/// 2. optimistic updates to a co-located list
-/// 3. add date/time picker for timestamp field
-/// 4. build account feature & add account_id as foreign key
-/// 5. build envelope feature & add spent_from as nullable foreign key
-#[component]
-pub fn TransactionNew() -> impl IntoView {
-    let transaction_new = create_server_action::<TransactionNew>();
-
-    view! {
-        <ActionForm action=transaction_new>
-            <Input name="payee".to_string() label="Payee:".to_string() attr:required=true />
-            <Input name="description".to_string() label="Description:".to_string() />
-            <InputAmount name="amount".to_string() label="Amount:".to_string() attr:required=true />
-            <button type="submit">Create</button>
-        </ActionForm>
-    }
-}
-
 /// Server endpoint for reading all transaction
 #[server(prefix = "/api", endpoint = "transactions/read/all")]
 pub async fn transactions_read_many() -> Result<Vec<Transaction>, ServerFnError> {
@@ -64,10 +104,9 @@ pub async fn transactions_read_many() -> Result<Vec<Transaction>, ServerFnError>
         .map_err(|e| ServerFnError::ServerError(e.to_string()))
 }
 
-/// UI for displaying a list of transactions
-///
-/// Currently just displays all transactions in the database. Needs the following features
-/// implemented later:
+/// A root component for rendering a list of transactions & a form for adding new ones to the list.
+/// Optimistically updates w/ pending transactions as new ones are created and before a response
+/// from the server is received.
 ///
 /// TODO:
 ///
@@ -78,51 +117,59 @@ pub async fn transactions_read_many() -> Result<Vec<Transaction>, ServerFnError>
 /// 4. sort by columns
 /// 5. filter by columns
 #[component]
-pub fn TransactionsAll() -> impl IntoView {
+pub fn All() -> impl IntoView {
+    // action for adding new transactions & signal tracking pending submission on that action
+    let new = create_server_multi_action::<TransactionNew>();
+    let submissions = new.submissions();
+
+    // resource for loading all transaction saved in the db
+    // updates every time the new action is executed
     let transactions = create_resource(
-        // FIXME: for now, this just reads once, later, hook it up to a server action's
-        // `version.get()` Signal to fetch updates any time there's changes
-        || {},
+        move || new.version().get(),
         move |_| transactions_read_many(),
     );
 
     view! {
+        <New action=new />
         <Suspense fallback=move || view! {<p>Loading...</p>}.into_view()>
             {move || {
-                let existing_transactions = {
-                    move || {
-                        transactions.get().map(move |t| match t {
-                            Err(err) => {
-                                view! { <pre>Error fetching transactions: {err.to_string()}</pre>}.into_view()
-                            },
-                            Ok(trans) => {
-                                if trans.is_empty() {
-                                    view! {<p>No transactions yet...</p>}.into_view()
-                                } else {
-                                    trans.into_iter().map(move |tran| {
-                                        view! {
-                                            <li>
-                                                <ul>
-                                                    <li>{tran.payee}</li>
-                                                    <li>{tran.amount.to_string()}</li>
-                                                    <li>{tran.description}</li>
-                                                </ul>
-                                            </li>
-                                        }
-                                    }).collect_view()
-                                }
+                let existing_transactions = move || {
+                    transactions.get().map(move |t| match t {
+                        Err(err) => {
+                            view! { <pre>Error fetching transactions: {err.to_string()}</pre>}.into_view()
+                        },
+                        Ok(transactions) => {
+                            if transactions.is_empty() {
+                                view! {<p>No transactions yet...</p>}.into_view()
+                            } else {
+                                view! { <ListItems transactions /> }.into_view()
                             }
-                        }).unwrap_or_default()
-                    }
+                        }
+                    }).unwrap_or_default()
                 };
 
-                // FIXME: when the resource relies on watching a server action for adding new
-                // transaction, get pending submissions for the action from `action.submissions()`
-                // like in https://github.com/leptos-rs/leptos/blob/5f53a1459ebc8ac1912df99ce24153c675a198ed/examples/todo_app_sqlite_axum/src/todo.rs#L172
-                // let pending_transactions = {...}
+                // optimistically render transactions that have been submitted, but not yet
+                // received back from the server
+                let pending_transactions = move || {
+                    submissions
+                        .get()
+                        .into_iter()
+                        .filter(|s| s.pending().get())
+                        .map(|s| s.input.get().map(|submission| {
+                            let TransactionNew {payee, amount, description} = submission;
+                            // convert empty strings to None, otherwise pass as Some(..)
+                            let desc_option = match description.as_str() {
+                                "" => None,
+                                _ => Some(description),
+                            };
+
+                            view! { <Item payee amount description=desc_option /> }
+                        })).collect_view()
+                };
 
                 view! {
                     <ul>
+                        {pending_transactions}
                         {existing_transactions}
                     </ul>
                 }

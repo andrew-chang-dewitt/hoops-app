@@ -3,7 +3,7 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::transactions::{TransactionNew, TransactionsAll};
+use crate::transactions::All as TransactionsAll;
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -42,7 +42,6 @@ pub fn App() -> impl IntoView {
 #[component]
 fn HomePage() -> impl IntoView {
     view! {
-        <TransactionNew />
         <TransactionsAll />
     }
 }
