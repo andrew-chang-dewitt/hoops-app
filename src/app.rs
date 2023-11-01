@@ -7,6 +7,8 @@ use rust_decimal::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::components::input::{Input, InputAmount, InputType};
+
 #[component]
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
@@ -180,6 +182,15 @@ pub async fn transaction_new(
 }
 
 /// UI for adding a transaction to the record
+/// Currently just submits the form w/out any error handling or optimistic updating of the list
+///
+/// TODO:
+///
+/// 1. error handling
+/// 2. optimistic updates to a co-located list
+/// 3. add date/time picker for timestamp field
+/// 4. build account feature & add account_id as foreign key
+/// 5. build envelope feature & add spent_from as nullable foreign key
 #[component]
 fn TransactionNew() -> impl IntoView {
     let transaction_new = create_server_action::<TransactionNew>();
@@ -215,6 +226,8 @@ pub async fn transactions_read_many() -> Result<Vec<Transaction>, ServerFnError>
 /// 2. auto-update if new transactions are added in the currently visible range of transactions
 /// 3. auto-update a transaction's displayed info if it is updated in the db & it is currently
 ///    visible
+/// 4. sort by columns
+/// 5. filter by columns
 #[component]
 fn TransactionsAll() -> impl IntoView {
     let transactions = create_resource(
@@ -266,53 +279,5 @@ fn TransactionsAll() -> impl IntoView {
                 }
             }}
         </Suspense>
-    }
-}
-
-/// Reusable amount input component
-#[component]
-pub fn InputAmount(
-    name: String,
-    label: String,
-    #[prop(optional)] value: String,
-    #[prop(attrs)] attrs: Vec<(&'static str, Attribute)>,
-) -> impl IntoView {
-    view! {
-        <Input {..attrs} name label value input_type=InputType::Number attr:step=0.01 attr:min=0.00 />
-    }
-}
-
-/// Reusable text input component
-#[component]
-pub fn Input(
-    name: String,
-    label: String,
-    #[prop(default = InputType::Text)] input_type: InputType,
-    #[prop(optional)] value: String,
-    #[prop(attrs)] attrs: Vec<(&'static str, Attribute)>,
-) -> impl IntoView {
-    let input_type_str: String = input_type.into();
-
-    view! {
-        <label for=&name>{&label}</label>
-        <input {..attrs} id=&name name=&name type=&input_type_str value=&value />
-    }
-}
-
-pub enum InputType {
-    Hidden,
-    Number,
-    Password,
-    Text,
-}
-
-impl Into<String> for InputType {
-    fn into(self) -> String {
-        match self {
-            InputType::Hidden => String::from("hidden"),
-            InputType::Number => String::from("number"),
-            InputType::Password => String::from("password"),
-            InputType::Text => String::from("text"),
-        }
     }
 }
