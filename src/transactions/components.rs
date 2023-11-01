@@ -16,8 +16,6 @@ use crate::transactions::model::{db_insert_new, db_read_many, pool};
 /// - [ ] error handling
 /// - [x] optimistic updates to a co-located list
 /// - [ ] add date/time picker for timestamp field
-/// - [ ] build account feature & add account_id as foreign key
-/// - [ ] build envelope feature & add spent_from as nullable foreign key
 #[component]
 pub fn New(action: MultiAction<TransactionNew, Result<(), ServerFnError>>) -> impl IntoView {
     view! {

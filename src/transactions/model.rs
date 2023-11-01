@@ -24,6 +24,24 @@ impl Transaction {
     }
 }
 
+// TODO:
+//
+// - [ ] Generalize db_* methods into a collection of Traits to impl a Table<Model, ModelSql> type that can contain
+//       the most common CRUD methods needed (e.g. create_one, read_one_by_id, read_many,
+//       update_one_by_id, delete_one_by_id). Table struct might look like this:
+//       ```
+//       struct Table<Model, ModelSql>
+//       where
+//          Model: Into<ModelSql>,
+//          ModelSql: TryInto<Model>,
+//      {
+//          // used to hold a table name to use when dynamically building queries
+//          table_name: String
+//      }
+//       ```
+// - [ ] add ORDER_BY clause w/ default ordering to db_read_many
+// - [ ] build account feature & add account_id as foreign key
+// - [ ] build envelope feature & add spent_from as nullable foreign key
 cfg_if! {
     if #[cfg(feature ="ssr")] {
         use std::convert::TryInto;
