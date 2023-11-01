@@ -52,7 +52,6 @@ fn HomePage() -> impl IntoView {
 /// Data type for modeling a transaction's information
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Transaction {
-    // FIXME: How to enable Deserialize & Serialize for Uuid?
     pub id: Uuid,
     pub payee: String,
     pub description: Option<String>,
@@ -83,10 +82,10 @@ cfg_if! {
 
         #[derive(FromRow, Clone)]
         pub struct TransactionSql {
-            id: Uuid,
-            payee: String,
-            description: Option<String>,
+            id: String,
             amount: String,
+            description: Option<String>,
+            payee: String,
         }
 
         impl TryInto<Transaction> for TransactionSql {
@@ -94,11 +93,11 @@ cfg_if! {
 
             fn try_into(self) -> Result<Transaction, Self::Error> {
                 let TransactionSql { id, amount, description, payee } = self;
+                // either of these conversions can fail, return early if one does
+                let id = Uuid::parse_str(&id)?;
+                let amount = Decimal::from_str_exact(&amount)?;
 
-                let tran = Transaction {
-                    id, payee, description,
-                    amount: Decimal::from_str_exact(&amount)?,
-                };
+                let tran = Transaction { id, amount, description, payee };
 
                 Ok(tran)
             }
@@ -107,11 +106,13 @@ cfg_if! {
         impl Into<TransactionSql> for Transaction {
             fn into(self) -> TransactionSql {
                 let Transaction { id, amount, description, payee } = self;
+                let amount = amount.to_string();
+                let id = id
+                    .hyphenated()
+                    .encode_lower(&mut Uuid::encode_buffer())
+                    .to_string();
 
-                TransactionSql {
-                    id, description, payee,
-                    amount: amount.to_string(),
-                }
+                TransactionSql { id, amount, description, payee }
             }
         }
 
@@ -134,16 +135,18 @@ cfg_if! {
         }
 
         pub async fn db_read_many(pool: &SqlitePool) -> Result<Vec<Transaction>, anyhow::Error> {
+            // needed to enable try_next on returned rows stream
+            use futures::TryStreamExt;
+
             let mut transactions: Vec<Transaction> = Vec::new();
-            let rows = sqlx::query_as::<_, TransactionSql>(
+            // rows must be mutable here...
+            let mut rows = sqlx::query_as::<_, TransactionSql>(
                 r#"
                 SELECT * FROM transactions;
                 "#
             ).fetch(pool);
 
-            // needed to enable try_next on returned rows stream
-            use futures::TryStreamExt;
-
+            // ...because it is destructively consumed here
             while let Some(row) = rows.try_next().await? {
                 let tran: Transaction = row.try_into()?;
                 transactions.push(tran);
@@ -222,24 +225,24 @@ fn TransactionsAll() -> impl IntoView {
     );
 
     view! {
-        <Suspense fallback=move || view! {<p>Loading...</p>}>
+        <Suspense fallback=move || view! {<p>Loading...</p>}.into_view()>
             {move || {
                 let existing_transactions = {
                     move || {
                         transactions.get().map(move |t| match t {
                             Err(err) => {
-                                view! { <pre></pre>}
+                                view! { <pre>Error fetching transactions: {err.to_string()}</pre>}.into_view()
                             },
                             Ok(trans) => {
                                 if trans.is_empty() {
-                                    view! {<p>No transactions yet...</p>}
+                                    view! {<p>No transactions yet...</p>}.into_view()
                                 } else {
                                     trans.into_iter().map(move |tran| {
                                         view! {
                                             <li>
                                                 <ul>
                                                     <li>{tran.payee}</li>
-                                                    <li>{tran.amount}</li>
+                                                    <li>{tran.amount.to_string()}</li>
                                                     <li>{tran.description}</li>
                                                 </ul>
                                             </li>
