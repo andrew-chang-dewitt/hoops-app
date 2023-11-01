@@ -30,7 +30,6 @@ cfg_if! {
         use sqlx::{ FromRow, SqlitePool };
 
         pub fn pool() -> Result<SqlitePool, ServerFnError> {
-            // FIXME: so why isn't it showing up in context here?
             use_context::<SqlitePool>()
                 .ok_or_else(|| ServerFnError::ServerError("Pool missing".into()))
         }

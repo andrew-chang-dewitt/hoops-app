@@ -13,11 +13,11 @@ use crate::transactions::model::{db_insert_new, db_read_many, pool};
 ///
 /// TODO:
 ///
-/// 1. error handling
-/// 2. optimistic updates to a co-located list
-/// 3. add date/time picker for timestamp field
-/// 4. build account feature & add account_id as foreign key
-/// 5. build envelope feature & add spent_from as nullable foreign key
+/// - [ ] error handling
+/// - [x] optimistic updates to a co-located list
+/// - [ ] add date/time picker for timestamp field
+/// - [ ] build account feature & add account_id as foreign key
+/// - [ ] build envelope feature & add spent_from as nullable foreign key
 #[component]
 pub fn New(action: MultiAction<TransactionNew, Result<(), ServerFnError>>) -> impl IntoView {
     view! {
@@ -110,12 +110,12 @@ pub async fn transactions_read_many() -> Result<Vec<Transaction>, ServerFnError>
 ///
 /// TODO:
 ///
-/// 1. paginate or infinite scroll
-/// 2. auto-update if new transactions are added in the currently visible range of transactions
-/// 3. auto-update a transaction's displayed info if it is updated in the db & it is currently
-///    visible
-/// 4. sort by columns
-/// 5. filter by columns
+/// - [ ] paginate or infinite scroll
+/// - [x] auto-update if new transactions are added in the currently visible range of transactions
+/// - [ ] auto-update a transaction's displayed info if it is updated in the db & it is currently
+///       visible
+/// - [ ] sort by columns
+/// - [ ] filter by columns
 #[component]
 pub fn All() -> impl IntoView {
     // action for adding new transactions & signal tracking pending submission on that action
