@@ -7,7 +7,7 @@ use rust_decimal::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::components::input::{Input, InputAmount, InputType};
+use crate::components::input::{Input, InputAmount};
 
 #[component]
 pub fn App() -> impl IntoView {
