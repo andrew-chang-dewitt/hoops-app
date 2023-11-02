@@ -1,8 +1,12 @@
+use chrono::{DateTime, Utc};
 use leptos::*;
 use leptos_router::*;
 use rust_decimal::prelude::*;
 
-use crate::components::input::{Input, InputAmount};
+use crate::components::{
+    // datepicker::Datepicker,
+    input::{Input, InputAmount},
+};
 use crate::transactions::model::Transaction;
 
 #[cfg(feature = "ssr")]
@@ -18,11 +22,15 @@ use crate::transactions::model::{db_insert_new, db_read_many, pool};
 /// - [ ] add date/time picker for timestamp field
 #[component]
 pub fn New(action: MultiAction<TransactionNew, Result<(), ServerFnError>>) -> impl IntoView {
+    let timestamp_value = Utc::now().to_rfc2822();
+
     view! {
         <MultiActionForm action>
             <Input name="payee".to_string() label="Payee:".to_string() attr:required=true />
             <Input name="description".to_string() label="Description:".to_string() />
             <InputAmount name="amount".to_string() label="Amount:".to_string() attr:required=true />
+            // FIXME: how to pass timestamp as UTC value?
+            <Input name="timestamp".to_string() label="Timestamp:".to_string() value=timestamp_value attr:required=true />
             <button type="submit">Create</button>
         </MultiActionForm>
     }
@@ -49,22 +57,29 @@ fn ListItems(transactions: Vec<Transaction>) -> impl IntoView {
                 payee,
                 amount,
                 description,
+                timestamp,
                 ..
             } = transaction;
-            view! { <Item payee amount description /> }
+            view! { <Item payee amount description timestamp /> }
         })
         .collect_view()
 }
 
 /// Component for rendering a single item in a transaction list
 #[component]
-fn Item(payee: String, amount: Decimal, description: Option<String>) -> impl IntoView {
+fn Item(
+    payee: String,
+    amount: Decimal,
+    description: Option<String>,
+    timestamp: DateTime<Utc>,
+) -> impl IntoView {
     view! {
         <li>
             <ul>
                 <li>{payee}</li>
                 <li>{amount.to_string()}</li>
                 <li>{description}</li>
+                <li>{timestamp.to_rfc2822()}</li>
             </ul>
         </li>
     }
@@ -76,16 +91,19 @@ pub async fn transaction_new(
     description: String,
     payee: String,
     amount: Decimal,
+    timestamp: String,
 ) -> Result<(), ServerFnError> {
     // convert empty strings to None, otherwise pass as Some(..)
-    let desc_option = match description.as_str() {
+    let description = match description.as_str() {
         "" => None,
         _ => Some(description),
     };
+    // convert rfc_2822 datestring into DateTime
+    let timestamp = DateTime::<Utc>::from(DateTime::parse_from_rfc2822(&timestamp)?);
     // if getting a pool fails, immediately return the error instead of proceeding
     let pool = &pool()?;
 
-    let transaction = Transaction::new(amount, payee, desc_option);
+    let transaction = Transaction::new(amount, payee, timestamp, description);
     db_insert_new(transaction, pool).await.map_err(|err| {
         logging::log!("There was an error saving the transaction: {}", err);
         ServerFnError::ServerError(err.to_string())
@@ -154,14 +172,16 @@ pub fn All() -> impl IntoView {
                         .into_iter()
                         .filter(|s| s.pending().get())
                         .map(|s| s.input.get().map(|submission| {
-                            let TransactionNew {payee, amount, description} = submission;
+                            let TransactionNew {payee, amount, description, timestamp} = submission;
                             // convert empty strings to None, otherwise pass as Some(..)
                             let desc_option = match description.as_str() {
                                 "" => None,
                                 _ => Some(description),
                             };
+                            // get DateTime from rfc_2822 datestring
+                            let timestamp = DateTime::<Utc>::from(DateTime::parse_from_rfc2822(&timestamp).unwrap());
 
-                            view! { <Item payee amount description=desc_option /> }
+                            view! { <Item payee amount description=desc_option timestamp /> }
                         })).collect_view()
                 };
 

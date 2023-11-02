@@ -1,4 +1,5 @@
 use cfg_if::cfg_if;
+use chrono::{DateTime, Utc};
 use leptos::*;
 use rust_decimal::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -8,18 +9,25 @@ use uuid::Uuid;
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Transaction {
     pub id: Uuid,
-    pub payee: String,
-    pub description: Option<String>,
     pub amount: Decimal,
+    pub description: Option<String>,
+    pub payee: String,
+    pub timestamp: DateTime<Utc>,
 }
 
 impl Transaction {
-    pub fn new(amount: Decimal, payee: String, description: Option<String>) -> Self {
+    pub fn new(
+        amount: Decimal,
+        payee: String,
+        timestamp: DateTime<Utc>,
+        description: Option<String>,
+    ) -> Self {
         Transaction {
             id: Uuid::new_v4(),
             amount,
             description,
             payee,
+            timestamp,
         }
     }
 }
@@ -58,18 +66,20 @@ cfg_if! {
             amount: String,
             description: Option<String>,
             payee: String,
+            timestamp: String,
         }
 
         impl TryInto<Transaction> for TransactionSql {
             type Error = anyhow::Error;
 
             fn try_into(self) -> Result<Transaction, Self::Error> {
-                let TransactionSql { id, amount, description, payee } = self;
+                let TransactionSql { id, amount, description, payee, timestamp } = self;
                 // either of these conversions can fail, return early if one does
                 let id = Uuid::parse_str(&id)?;
                 let amount = Decimal::from_str_exact(&amount)?;
+                let timestamp = DateTime::from(DateTime::parse_from_rfc3339(&timestamp)?);
 
-                let tran = Transaction { id, amount, description, payee };
+                let tran = Transaction { id, amount, description, payee, timestamp };
 
                 Ok(tran)
             }
@@ -77,29 +87,31 @@ cfg_if! {
 
         impl Into<TransactionSql> for Transaction {
             fn into(self) -> TransactionSql {
-                let Transaction { id, amount, description, payee } = self;
+                let Transaction { id, amount, description, payee, timestamp } = self;
                 let amount = amount.to_string();
                 let id = id
                     .hyphenated()
                     .encode_lower(&mut Uuid::encode_buffer())
                     .to_string();
+                let timestamp = timestamp.to_rfc3339();
 
-                TransactionSql { id, amount, description, payee }
+                TransactionSql { id, amount, description, payee, timestamp }
             }
         }
 
         pub async fn db_insert_new(transaction: Transaction, pool: &SqlitePool) -> Result<(), sqlx::Error> {
-            let TransactionSql {id, payee, description, amount} = transaction.into();
+            let TransactionSql {id, amount, description, payee, timestamp} = transaction.into();
 
             sqlx::query!(
                 r#"
-                INSERT INTO transactions (id, amount, description, payee)
-                VALUES (?, ?, ?, ?);
+                INSERT INTO transactions (id, amount, description, payee, timestamp)
+                VALUES (?, ?, ?, ?, ?);
                 "#,
                 id,
                 amount,
                 description,
                 payee,
+                timestamp,
             )
                 .execute(pool)
                 .await
