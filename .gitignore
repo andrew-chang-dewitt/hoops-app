@@ -14,3 +14,4 @@ playwright/.cache/
 
 # database
 hoops.db
+hoops.db*
