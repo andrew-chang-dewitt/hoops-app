@@ -4,7 +4,7 @@ use leptos_router::*;
 use rust_decimal::prelude::*;
 
 use crate::components::{
-    // datepicker::Datepicker,
+    datepicker::DateTimePicker,
     input::{Input, InputAmount},
 };
 use crate::transactions::model::Transaction;
@@ -22,7 +22,7 @@ use crate::transactions::model::{db_insert_new, db_read_many, pool};
 /// - [ ] add date/time picker for timestamp field
 #[component]
 pub fn New(action: MultiAction<TransactionNew, Result<(), ServerFnError>>) -> impl IntoView {
-    let timestamp_value = Utc::now().to_rfc2822();
+    let timestamp_value = Utc::now().naive_utc();
 
     view! {
         <MultiActionForm action>
@@ -37,7 +37,7 @@ pub fn New(action: MultiAction<TransactionNew, Result<(), ServerFnError>>) -> im
             //        This will force local time in the browser, but that can be pretty easily made
             //        into a chrono::NaiveDateTime and then UTC via that struct's `.and_utc()`
             //        method
-            <Input name="timestamp".to_string() label="Timestamp:".to_string() value=timestamp_value attr:required=true />
+            <DateTimePicker name="timestamp".to_string() label="Timestamp:".to_string() value=timestamp_value attr:required=true />
             <button type="submit">Create</button>
         </MultiActionForm>
     }

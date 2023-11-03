@@ -35,6 +35,8 @@ pub enum InputType {
     Number,
     Password,
     Text,
+    Date,
+    DateTime,
 }
 
 impl Into<String> for InputType {
@@ -44,6 +46,8 @@ impl Into<String> for InputType {
             InputType::Number => String::from("number"),
             InputType::Password => String::from("password"),
             InputType::Text => String::from("text"),
+            InputType::Date => String::from("date"),
+            InputType::DateTime => String::from("datetime-local"),
         }
     }
 }
