@@ -13,7 +13,6 @@ use crate::transactions::model::Transaction;
 use crate::transactions::model::{db_insert_new, db_read_many, pool};
 
 /// UI for adding a transaction to the record
-/// Currently just submits the form w/out any error handling or optimistic updating of the list
 ///
 /// TODO:
 ///
@@ -100,7 +99,6 @@ pub async fn transaction_new(
     amount: Decimal,
     timestamp: String,
 ) -> Result<(), ServerFnError> {
-    logging::log!("timestamp is: {}", &timestamp);
     println!("timestamp is: {}", &timestamp);
     // convert empty strings to None, otherwise pass as Some(..)
     let description = match description.as_str() {
@@ -109,7 +107,7 @@ pub async fn transaction_new(
     };
     // convert rfc_2822 datestring into DateTime
     let timestamp = DateTime::<Utc>::from_naive_utc_and_offset(
-        NaiveDateTime::parse_from_str(&timestamp, "%Y-%m-%dT%h:%m")?,
+        NaiveDateTime::parse_from_str(&timestamp, "%Y-%m-%dT%H:%M")?,
         Utc,
     );
     // if getting a pool fails, immediately return the error instead of proceeding
