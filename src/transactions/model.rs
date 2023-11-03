@@ -126,7 +126,8 @@ cfg_if! {
             // rows must be mutable here...
             let mut rows = sqlx::query_as::<_, TransactionSql>(
                 r#"
-                SELECT * FROM transactions;
+                SELECT * FROM transactions
+                ORDER BY timestamp DESC;
                 "#
             ).fetch(pool);
 
