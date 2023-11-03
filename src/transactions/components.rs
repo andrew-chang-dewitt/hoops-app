@@ -30,6 +30,13 @@ pub fn New(action: MultiAction<TransactionNew, Result<(), ServerFnError>>) -> im
             <Input name="description".to_string() label="Description:".to_string() />
             <InputAmount name="amount".to_string() label="Amount:".to_string() attr:required=true />
             // FIXME: how to pass timestamp as UTC value?
+            // FIXME: try using ISO8601 formatting w/ `<input type="date">...</input>`--
+            //        see
+            //        https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/datetime-local
+            //        for more information.
+            //        This will force local time in the browser, but that can be pretty easily made
+            //        into a chrono::NaiveDateTime and then UTC via that struct's `.and_utc()`
+            //        method
             <Input name="timestamp".to_string() label="Timestamp:".to_string() value=timestamp_value attr:required=true />
             <button type="submit">Create</button>
         </MultiActionForm>
