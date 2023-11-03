@@ -1,5 +1,5 @@
-use chrono::{DateTime, Utc};
-use leptos::*;
+use chrono::{DateTime, NaiveDateTime, Utc};
+use leptos::{svg::tspan, *};
 use leptos_router::*;
 use rust_decimal::prelude::*;
 
@@ -100,13 +100,18 @@ pub async fn transaction_new(
     amount: Decimal,
     timestamp: String,
 ) -> Result<(), ServerFnError> {
+    logging::log!("timestamp is: {}", &timestamp);
+    println!("timestamp is: {}", &timestamp);
     // convert empty strings to None, otherwise pass as Some(..)
     let description = match description.as_str() {
         "" => None,
         _ => Some(description),
     };
     // convert rfc_2822 datestring into DateTime
-    let timestamp = DateTime::<Utc>::from(DateTime::parse_from_rfc2822(&timestamp)?);
+    let timestamp = DateTime::<Utc>::from_naive_utc_and_offset(
+        NaiveDateTime::parse_from_str(&timestamp, "%Y-%m-%dT%h:%m")?,
+        Utc,
+    );
     // if getting a pool fails, immediately return the error instead of proceeding
     let pool = &pool()?;
 
