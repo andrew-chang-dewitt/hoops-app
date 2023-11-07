@@ -99,6 +99,18 @@ cfg_if! {
             }
         }
 
+        // TODO:
+        // let's refactor these two db methods into traits for creating and reading records in a
+        // database. might look something like this:
+        //
+        // ```
+        // pub trait Create<T, S> {
+        //   /// Insert the given item into the database
+        //   async fn create_one(self, item: S) -> T;
+        //   /// Insert the given items into the database
+        //   async fn create_many(self, items: Vec<S>) -> usize;
+        // }
+        // ```
         pub async fn db_insert_new(transaction: Transaction, pool: &SqlitePool) -> Result<(), sqlx::Error> {
             let TransactionSql {id, amount, description, payee, timestamp} = transaction.into();
 
@@ -118,6 +130,15 @@ cfg_if! {
                 .map(|_| ())
         }
 
+        // TODO:
+        // ```
+        // pub trait Read<T, Id> {
+        //   /// Read one item with given ID from the database, if it exists
+        //   async fn read_one_by_id(self, item: Id) -> Result<Option<T>, anyhow::Error>;
+        //   /// Read many items from the database
+        //   async fn read_many(self) -> Result<Vec<T>, anyhow::Error>;
+        // }
+        // ```
         pub async fn db_read_many(pool: &SqlitePool) -> Result<Vec<Transaction>, anyhow::Error> {
             // needed to enable try_next on returned rows stream
             use futures::TryStreamExt;
