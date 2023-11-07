@@ -107,7 +107,7 @@ pub async fn transaction_new(
     };
     // convert rfc_2822 datestring into DateTime
     let timestamp = DateTime::<Utc>::from_naive_utc_and_offset(
-        NaiveDateTime::parse_from_str(&timestamp, "%Y-%m-%dT%H:%M")?,
+        NaiveDateTime::parse_from_str(&timestamp, "%Y-%m-%dT%H:%M:%S")?,
         Utc,
     );
     // if getting a pool fails, immediately return the error instead of proceeding

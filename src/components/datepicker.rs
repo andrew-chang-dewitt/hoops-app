@@ -11,9 +11,9 @@ pub fn DateTimePicker(
     value: NaiveDateTime,
     #[prop(attrs)] attrs: Vec<(&'static str, Attribute)>,
 ) -> impl IntoView {
-    let value = value.format("%Y-%m-%dT%h:%m:%s").to_string();
+    let value = value.format("%Y-%m-%dT%H:%M:%S").to_string();
 
     view! {
-        <Input {..attrs} input_type=InputType::DateTime name label value />
+        <Input {..attrs} input_type=InputType::DateTime name label value attr:step=1 />
     }
 }
