@@ -2,10 +2,10 @@ use cfg_if::cfg_if;
 pub mod app;
 pub mod error_template;
 pub mod fileserv;
+pub mod models;
 pub mod state;
 
 mod components;
-mod models;
 mod transactions;
 
 cfg_if! { if #[cfg(feature = "hydrate")] {

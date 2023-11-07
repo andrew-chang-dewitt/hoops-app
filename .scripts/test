@@ -17,4 +17,6 @@
 # ```
 #
 # run the non wasm tests with cargo-leptos and the rest with a manually specified wasm target
-cargo watch -x "leptos test" -x "test --target=wasm32-unknown-unknown --features=hydrate"
+# cargo watch -x "leptos test" -x "test --target=wasm32-unknown-unknown --features=hydrate"
+
+cargo leptos test

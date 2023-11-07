@@ -46,7 +46,7 @@ pub fn New(action: MultiAction<TransactionNew, Result<(), ServerFnError>>) -> im
 ///
 /// Intended to be used to inside a `<ul>`, like so:
 ///
-/// ```
+/// ```ignore
 /// <ul>
 ///     <ListItems transactions={...}>
 /// </ul>
