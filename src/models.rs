@@ -27,6 +27,7 @@ pub trait Table {
 ///
 /// ```
 /// use uuid::Uuid;
+/// use std::convert::TryInto;
 /// use sqlx::{FromRow, SqlitePool, sqlite::SqliteRow};
 ///
 /// use hoops_app::models::{Table, Create};
@@ -36,20 +37,33 @@ pub trait Table {
 ///   num: usize,
 /// }
 ///
-/// // FIXME:
-/// // looks like I do need Type & TypeSql w/ Into & TryInto conversions since sqlx::sqlite::Type
-/// // isn't implemented for a lot of things
-/// // while a FromRow impl will fix the from sql to type direction, it won't fix the other
-/// // Sqlite stores Uuid as TEXT & Sqlx doesn't know how to convert it
-/// impl FromRow<'_, SqliteRow> for MyType {
-///   fn from_row(row: &_ SqliteRow) -> sqlx::Result<Self> {
-///     // try to get id field from row, then try to parse to uuid
-///     let id = Uuid::parse_str(row.try_get("id")?)?;
-///     // try to get num field from row
-///     let num = row.try_get("num")?;
+/// #[derive(FromRow, Clone)]
+/// struct MyTypeSql {
+///   id: String,
+///   num: usize,
+/// }
 ///
-///     // Return as actual desired type
-///     Ok(MyType { id, num })
+/// impl Into<MyTypeSql> for MyType {
+///   fn into(self) -> MyTypeSql {
+///     let Self { id, num } = self;
+///     let id = id
+///         .hyphenated()
+///         .encode_lower(&mut Uuid::encode_buffer())
+///         .to_string();
+///     
+///     MyTypeSql { id, num }
+///   }
+/// }
+///
+/// impl TryInto<MyType> for MyTypeSql {
+///     type Error = anyhow::Error;
+///
+///   fn try_into(self) -> Result<MyType, Self::Error> {
+///     let Self { id, num } = self;
+///     // either of these conversions can fail, return early if one does
+///     let id = Uuid::parse_str(&id)?;
+///
+///     Ok(MyType {id, num})
 ///   }
 /// }
 ///
@@ -67,9 +81,10 @@ pub trait Table {
 ///   }
 /// }
 /// ```
-pub trait Create
+pub trait Create<'r, SqlType>
 where
-    Self: for<'a> FromRow<'a, SqliteRow>,
+    Self: Into<SqlType>,
+    SqlType: TryInto<Self> + FromRow<'r, SqliteRow>,
 {
     /// Insert the given item into the database
     fn create_one(
@@ -102,10 +117,10 @@ where
 //         .map(|_| ())
 // }
 
-pub trait Read<SqlType>
+pub trait Read<'r, SqlType>
 where
     Self: Into<SqlType>,
-    SqlType: TryInto<Self>,
+    SqlType: TryInto<Self> + FromRow<'r, SqliteRow>,
 {
     /// Read one item with given ID from the database, if it exists
     fn read_one_by_id<Id>(
