@@ -1,3 +1,5 @@
+#![feature(associated_type_bounds)]
+
 use cfg_if::cfg_if;
 pub mod app;
 pub mod error_template;
