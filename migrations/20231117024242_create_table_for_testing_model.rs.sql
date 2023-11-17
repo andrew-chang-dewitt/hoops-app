@@ -1,0 +1,6 @@
+DROP TABLE my_table;
+
+CREATE TABLE IF NOT EXISTS "my_table" (
+    "id" TEXT PRIMARY KEY NOT NULL,
+    "txt" TEXT
+) STRICT;

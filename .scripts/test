@@ -19,4 +19,25 @@
 # run the non wasm tests with cargo-leptos and the rest with a manually specified wasm target
 # cargo watch -x "leptos test" -x "test --target=wasm32-unknown-unknown --features=hydrate"
 
+# # # # # # # # # # # # # # # # #
+# set up test database
+# # # # # # # # # # # # # # # # #
+
+db_name="test.db"
+
+# set database url variable
+DATABASE_URL="sqlite:${db_name}"
+
+# create database then run migration
+sqlx database create
+sqlx migrate run
+
+# # # # # # # # # # # # # # # # #
+# run tests
+# # # # # # # # # # # # # # # # #
 cargo leptos test
+
+# # # # # # # # # # # # # # # # #
+# tear down test database
+# # # # # # # # # # # # # # # # #
+rm $db_name
