@@ -1,5 +1,5 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
-use leptos::{svg::tspan, *};
+use leptos::*;
 use leptos_router::*;
 use rust_decimal::prelude::*;
 
@@ -10,7 +10,9 @@ use crate::components::{
 use crate::transactions::model::Transaction;
 
 #[cfg(feature = "ssr")]
-use crate::transactions::model::{db_insert_new, db_read_many, pool};
+use crate::transactions::model::{db_read_many, pool};
+
+const DATETIME_STR: &'static str = "%Y-%m-%dT%H:%M:%S";
 
 /// UI for adding a transaction to the record
 ///
@@ -99,6 +101,8 @@ pub async fn transaction_new(
     amount: Decimal,
     timestamp: String,
 ) -> Result<(), ServerFnError> {
+    use crate::models::Create;
+
     println!("timestamp is: {}", &timestamp);
     // convert empty strings to None, otherwise pass as Some(..)
     let description = match description.as_str() {
@@ -107,14 +111,18 @@ pub async fn transaction_new(
     };
     // convert rfc_2822 datestring into DateTime
     let timestamp = DateTime::<Utc>::from_naive_utc_and_offset(
-        NaiveDateTime::parse_from_str(&timestamp, "%Y-%m-%dT%H:%M:%S")?,
+        NaiveDateTime::parse_from_str(&timestamp, DATETIME_STR)?,
         Utc,
     );
     // if getting a pool fails, immediately return the error instead of proceeding
     let pool = &pool()?;
 
-    let transaction = Transaction::new(amount, payee, timestamp, description);
-    db_insert_new(transaction, pool).await.map_err(|err| {
+    Transaction::create_one(
+        pool,
+        Transaction::new(amount, payee, timestamp, description),
+    )
+    .await
+    .map_err(|err| {
         logging::log!("There was an error saving the transaction: {}", err);
         ServerFnError::ServerError(err.to_string())
     })
@@ -188,8 +196,13 @@ pub fn All() -> impl IntoView {
                                 "" => None,
                                 _ => Some(description),
                             };
-                            // get DateTime from rfc_2822 datestring
-                            let timestamp = DateTime::<Utc>::from(DateTime::parse_from_rfc2822(&timestamp).unwrap());
+                            // FIXME: there's a bug here where the time stamp somehow isn't being
+                            // parsed correctly for the first submission on a fresh page load.
+                            // interestingly enough, the  log below appears in the browser console
+                            // for the first press that fails, but in the server console for
+                            // subsequent (successful) attempts.
+                            logging::log!("timestamp string value is: {:?}", &timestamp);
+                            let timestamp = DateTime::<Utc>::from(DateTime::parse_from_str(&timestamp, DATETIME_STR).unwrap());
 
                             view! { <Item payee amount description=desc_option timestamp /> }
                         })).collect_view()

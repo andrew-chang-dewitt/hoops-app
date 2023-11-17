@@ -52,8 +52,10 @@ impl Transaction {
 // - [ ] build envelope feature & add spent_from as nullable foreign key
 cfg_if! {
     if #[cfg(feature ="ssr")] {
-        use std::convert::TryInto;
+        use std::convert::TryFrom;
         use sqlx::{ FromRow, SqlitePool };
+
+        use crate::models::{Create, Table};
 
         pub fn pool() -> Result<SqlitePool, ServerFnError> {
             use_context::<SqlitePool>()
@@ -69,25 +71,23 @@ cfg_if! {
             timestamp: String,
         }
 
-        impl TryInto<Transaction> for TransactionSql {
+        impl TryFrom<TransactionSql> for Transaction {
             type Error = anyhow::Error;
 
-            fn try_into(self) -> Result<Transaction, Self::Error> {
-                let TransactionSql { id, amount, description, payee, timestamp } = self;
-                // either of these conversions can fail, return early if one does
+            fn try_from(value: TransactionSql) -> Result<Self, Self::Error> {
+                let TransactionSql { id, amount, description, payee, timestamp } = value;
+                // any of these conversions can fail, return early if one does
                 let id = Uuid::parse_str(&id)?;
                 let amount = Decimal::from_str_exact(&amount)?;
                 let timestamp = DateTime::from(DateTime::parse_from_rfc3339(&timestamp)?);
 
-                let tran = Transaction { id, amount, description, payee, timestamp };
-
-                Ok(tran)
+                Ok(Transaction { id, amount, description, payee, timestamp })
             }
         }
 
-        impl Into<TransactionSql> for Transaction {
-            fn into(self) -> TransactionSql {
-                let Transaction { id, amount, description, payee, timestamp } = self;
+        impl From<Transaction> for TransactionSql {
+            fn from(value: Transaction) -> Self {
+                let Transaction { id, amount, description, payee, timestamp } = value;
                 let amount = amount.to_string();
                 let id = id
                     .hyphenated()
@@ -95,39 +95,47 @@ cfg_if! {
                     .to_string();
                 let timestamp = timestamp.to_rfc3339();
 
-                TransactionSql { id, amount, description, payee, timestamp }
+                Self { id, amount, description, payee, timestamp }
             }
         }
 
-        // TODO:
-        // let's refactor these two db methods into traits for creating and reading records in a
-        // database. might look something like this:
-        //
-        // ```
-        // pub trait Create<T, S> {
-        //   /// Insert the given item into the database
-        //   async fn create_one(self, item: S) -> T;
-        //   /// Insert the given items into the database
-        //   async fn create_many(self, items: Vec<S>) -> usize;
-        // }
-        // ```
-        pub async fn db_insert_new(transaction: Transaction, pool: &SqlitePool) -> Result<(), sqlx::Error> {
-            let TransactionSql {id, amount, description, payee, timestamp} = transaction.into();
+        impl Table for Transaction {
+            const TABLE: &'static str = "transactions";
+        }
 
-            sqlx::query!(
-                r#"
-                INSERT INTO transactions (id, amount, description, payee, timestamp)
-                VALUES (?, ?, ?, ?, ?);
-                "#,
-                id,
-                amount,
-                description,
-                payee,
-                timestamp,
-            )
-                .execute(pool)
-                .await
-                .map(|_| ())
+        impl Create<'_> for Transaction {
+            type SqlType = TransactionSql;
+
+            async fn create_one(pool: &SqlitePool, value: Self) -> Result<(), anyhow::Error> {
+                let TransactionSql {id, amount, description, payee, timestamp} = value.into();
+
+                // TODO:
+                //
+                // I've been looking for a way to generalize this so Create can provide a default
+                // impl or an internal default impl that is intended to be used by the implementor
+                // to make creating this function easier.
+                //
+                // Seems like I could get all the struct's field names using macros, but not sure I
+                // want to go that route. A super naive version here: https://stackoverflow.com/questions/29986057/is-there-a-way-to-get-the-field-names-of-a-struct-in-a-macro
+                // But that just returns a vec of strs, so not exactly useful still?
+                //
+                // Could also look at a proc macro, but that's a much hairier beast...
+                sqlx::query!(
+                    r#"
+                    INSERT INTO transactions (id, amount, description, payee, timestamp)
+                    VALUES (?, ?, ?, ?, ?);
+                    "#,
+                    id,
+                    amount,
+                    description,
+                    payee,
+                    timestamp,
+                )
+                    .execute(pool)
+                    .await
+                    .map(|_| ())
+                    .map_err(|e| e.into())
+            }
         }
 
         // TODO:
