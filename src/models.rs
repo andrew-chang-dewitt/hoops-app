@@ -87,14 +87,12 @@ pub trait Table {
 pub trait Create<'r>: Sized + Table {
     type SqlType: From<Self> + FromRow<'r, SqliteRow>;
 
+    // TODO: impl this, prob w/ sqlx::QueryBuilder???
     /// Insert the given item into the database
     fn create_one(
         pool: &SqlitePool,
         value: Self,
-    ) -> impl std::future::Future<Output = Result<(), anyhow::Error>> + Send {
-        // TODO: impl this, prob w/ sqlx::QueryBuilder???
-        unimplemented!();
-    }
+    ) -> impl std::future::Future<Output = Result<(), anyhow::Error>> + Send;
 }
 
 /// Methods for saving a type to a database.
