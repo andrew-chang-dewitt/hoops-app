@@ -130,10 +130,13 @@ pub async fn transaction_new(
 
 /// Server endpoint for reading all transaction
 #[server(prefix = "/api", endpoint = "transactions/read/all")]
-pub async fn transactions_read_many() -> Result<Vec<Transaction>, ServerFnError> {
+pub async fn transactions_read_many(
+    limit: Option<u32>,
+    offset: Option<u32>,
+) -> Result<Vec<Transaction>, ServerFnError> {
     let pool = &pool()?;
 
-    db_read_many(pool)
+    db_read_many(pool, limit, offset)
         .await
         .map_err(|e| ServerFnError::ServerError(e.to_string()))
 }
@@ -144,14 +147,17 @@ pub async fn transactions_read_many() -> Result<Vec<Transaction>, ServerFnError>
 ///
 /// TODO:
 ///
-/// - [ ] paginate or infinite scroll
+/// - [...] paginate or infinite scroll
 /// - [x] auto-update if new transactions are added in the currently visible range of transactions
 /// - [ ] auto-update a transaction's displayed info if it is updated in the db & it is currently
 ///       visible
 /// - [ ] sort by columns
 /// - [ ] filter by columns
 #[component]
-pub fn All() -> impl IntoView {
+pub fn All(
+    #[prop(optional)] num_on_page: Option<u32>,
+    #[prop(optional)] start_after: Option<u32>,
+) -> impl IntoView {
     // action for adding new transactions & signal tracking pending submission on that action
     let new = create_server_multi_action::<TransactionNew>();
     let submissions = new.submissions();
@@ -160,7 +166,7 @@ pub fn All() -> impl IntoView {
     // updates every time the new action is executed
     let transactions = create_resource(
         move || new.version().get(),
-        move |_| transactions_read_many(),
+        move |_| transactions_read_many(num_on_page, start_after),
     );
 
     view! {
