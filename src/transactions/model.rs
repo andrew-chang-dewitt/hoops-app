@@ -147,18 +147,28 @@ cfg_if! {
         //   async fn read_many(self) -> Result<Vec<T>, anyhow::Error>;
         // }
         // ```
-        pub async fn db_read_many(pool: &SqlitePool) -> Result<Vec<Transaction>, anyhow::Error> {
+        pub async fn db_read_many(pool: &SqlitePool, limit: Option<u32>, offset: Option<u32>) -> Result<Vec<Transaction>, anyhow::Error> {
             // needed to enable try_next on returned rows stream
             use futures::TryStreamExt;
+
+            // use provided limit & offset for pagination, or default to 100 rows starting with the
+            // first result
+            let limit = limit.unwrap_or(100);
+            let offset = offset.unwrap_or(0);
 
             let mut transactions: Vec<Transaction> = Vec::new();
             // rows must be mutable here...
             let mut rows = sqlx::query_as::<_, TransactionSql>(
                 r#"
                 SELECT * FROM transactions
-                ORDER BY timestamp DESC;
+                ORDER BY timestamp DESC
+                LIMIT ?
+                OFFSET ?;
                 "#
-            ).fetch(pool);
+            )
+                .bind(limit)
+                .bind(offset)
+                .fetch(pool);
 
             // ...because it is destructively consumed here
             while let Some(row) = rows.try_next().await? {

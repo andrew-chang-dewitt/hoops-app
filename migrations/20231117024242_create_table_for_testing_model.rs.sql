@@ -1,4 +1,4 @@
-DROP TABLE my_table;
+DROP TABLE IF EXISTS my_table;
 
 CREATE TABLE IF NOT EXISTS "my_table" (
     "id" TEXT PRIMARY KEY NOT NULL,
