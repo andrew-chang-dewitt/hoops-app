@@ -87,12 +87,34 @@ pub trait Table {
 pub trait Create<'r>: Sized + Table {
     type SqlType: From<Self> + FromRow<'r, SqliteRow>;
 
-    // TODO: impl this, prob w/ sqlx::QueryBuilder???
+    // TODO: Write derive proc macro to write a fn like below automatically for the given struct
+    // fn create_one(pool: &SqlitePool, value: Self) -> Result<(), anyhow::Error> {
+    //   ...get cols & vals out as arrays
+    //   let cols: [&str] = ...;
+    //   let vals: (...) = ...;
+    //
+    //   then call from cols and vals:
+    //   Self::create_one_from_cols_and_vals(pool, cols, vals)
+    // }
+
+    // /// Insert the given item into the database
+    // fn create_one_from_cols_and_vals(
+    //     pool: &SqlitePool,
+    //     value: Self,
+    //     columns: &[&str],
+    // ) -> impl std::future::Future<Output = Result<(), anyhow::Error>> + Send;
+
+    // instead, for now just use this one
     /// Insert the given item into the database
     fn create_one(
         pool: &SqlitePool,
         value: Self,
-    ) -> impl std::future::Future<Output = Result<(), anyhow::Error>> + Send;
+    ) -> impl std::future::Future<Output = Result<(), anyhow::Error>> + Send {
+        async move {
+            let _ = async { 1 }.await;
+            unimplemented!()
+        }
+    }
 }
 
 /// Methods for saving a type to a database.

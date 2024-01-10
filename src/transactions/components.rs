@@ -101,8 +101,6 @@ pub async fn transaction_new(
     amount: Decimal,
     timestamp: String,
 ) -> Result<(), ServerFnError> {
-    use crate::models::Create;
-
     println!("timestamp is: {}", &timestamp);
     // convert empty strings to None, otherwise pass as Some(..)
     let description = match description.as_str() {
